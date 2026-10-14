@@ -1,0 +1,46 @@
+# Backend: microservicio pedidos (Deployment). Llama por HTTP a catalogo e inventario (URLs en el ConfigMap).
+# El Service ClusterIP de este microservicio vive en services.yaml (selector app: pedidos).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pedidos-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: pedidos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pedidos
+  template:
+    metadata:
+      labels:
+        app: pedidos
+    spec:
+      containers:
+        - name: pedidos
+          image: gotzeth/pedidos:1.0
+          ports:
+            - containerPort: 5000
+          # DB_HOST, DB_PORT, DB_NAME (y URLs entre servicios) vienen del ConfigMap
+          envFrom:
+            - configMapRef:
+                name: pedidos-cfg-holdovers
+          # Credenciales desde el Secret: las claves llevan prefijo, el código lee DB_USER / DB_PASSWORD
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: PEDIDOS_DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: PEDIDOS_DB_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10

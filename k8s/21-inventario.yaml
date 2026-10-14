@@ -1,0 +1,46 @@
+# Backend: microservicio inventario (Deployment).
+# El Service ClusterIP de este microservicio vive en services.yaml (selector app: inventario).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventario-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: inventario
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventario
+  template:
+    metadata:
+      labels:
+        app: inventario
+    spec:
+      containers:
+        - name: inventario
+          image: gotzeth/inventario:1.0
+          ports:
+            - containerPort: 5000
+          # DB_HOST, DB_PORT, DB_NAME (y URLs entre servicios) vienen del ConfigMap
+          envFrom:
+            - configMapRef:
+                name: inventario-cfg-holdovers
+          # Credenciales desde el Secret: las claves llevan prefijo, el código lee DB_USER / DB_PASSWORD
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: INVENTARIO_DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: INVENTARIO_DB_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10

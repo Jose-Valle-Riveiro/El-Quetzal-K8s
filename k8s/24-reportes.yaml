@@ -1,0 +1,34 @@
+# Backend: microservicio reportes (Deployment). No tiene base de datos: sin Secret.
+# Llama por HTTP a pedidos y clientes (PEDIDOS_URL y CLIENTES_URL vienen del ConfigMap).
+# El Service ClusterIP vive en services.yaml (selector app: reportes).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reportes-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: reportes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reportes
+  template:
+    metadata:
+      labels:
+        app: reportes
+    spec:
+      containers:
+        - name: reportes
+          image: gotzeth/reportes:1.0
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: reportes-cfg-holdovers
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
