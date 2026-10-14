@@ -1,0 +1,46 @@
+# Backend: microservicio clientes (Deployment).
+# El Service ClusterIP de este microservicio vive en services.yaml (selector app: clientes).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clientes-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: clientes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clientes
+  template:
+    metadata:
+      labels:
+        app: clientes
+    spec:
+      containers:
+        - name: clientes
+          image: gotzeth/clientes:1.0
+          ports:
+            - containerPort: 5000
+          # DB_HOST, DB_PORT, DB_NAME (y URLs entre servicios) vienen del ConfigMap
+          envFrom:
+            - configMapRef:
+                name: clientes-cfg-holdovers
+          # Credenciales desde el Secret: las claves llevan prefijo, el código lee DB_USER / DB_PASSWORD
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: CLIENTES_DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: CLIENTES_DB_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
