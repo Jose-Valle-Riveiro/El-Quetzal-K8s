@@ -1,0 +1,53 @@
+# Configuración NO sensible: hosts, puertos, nombres de BD y URLs entre servicios.
+# Las credenciales (usuario/password) viven en el Secret db-secret-holdovers.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalogo-cfg-holdovers
+  namespace: proyecto-2-holdovers
+data:
+  DB_HOST: postgres-holdovers
+  DB_PORT: "5432"
+  DB_NAME: catalogo_db
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventario-cfg-holdovers
+  namespace: proyecto-2-holdovers
+data:
+  DB_HOST: postgres-holdovers
+  DB_PORT: "5432"
+  DB_NAME: inventario_db
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clientes-cfg-holdovers
+  namespace: proyecto-2-holdovers
+data:
+  DB_HOST: postgres-holdovers
+  DB_PORT: "5432"
+  DB_NAME: clientes_db
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pedidos-cfg-holdovers
+  namespace: proyecto-2-holdovers
+data:
+  DB_HOST: postgres-holdovers
+  DB_PORT: "5432"
+  DB_NAME: pedidos_db
+  CATALOGO_URL: http://catalogo-holdovers:5000
+  INVENTARIO_URL: http://inventario-holdovers:5000
+  CLIENTES_URL: http://clientes-holdovers:5000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reportes-cfg-holdovers
+  namespace: proyecto-2-holdovers
+data:
+  PEDIDOS_URL: http://pedidos-holdovers:5000
+  CLIENTES_URL: http://clientes-holdovers:5000
