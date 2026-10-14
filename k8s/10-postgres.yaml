@@ -1,0 +1,120 @@
+# 1. PERSISTENT VOLUME CLAIM (PVC)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: proyecto-2-holdovers
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+
+# 2. DEPLOYMENT DE POSTGRESQL
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: postgres-holdovers
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-holdovers
+  template:
+    metadata:
+      labels:
+        app: postgres-holdovers
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: POSTGRES_PASSWORD
+            # Contraseñas inyectadas para el script 01-crear-bases.sh
+            - name: CATALOGO_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: CATALOGO_DB_PASSWORD
+            - name: INVENTARIO_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: INVENTARIO_DB_PASSWORD
+            - name: CLIENTES_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: CLIENTES_DB_PASSWORD
+            - name: PEDIDOS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret-holdovers
+                  key: PEDIDOS_DB_PASSWORD
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres -d postgres
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres -d postgres
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: postgres-init
+          configMap:
+            name: postgres-init-scripts
+            defaultMode: 0755
+
+---
+
+# 3. SERVICE (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: postgres-holdovers
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: postgres-holdovers
