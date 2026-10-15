@@ -3,7 +3,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend
+  name: frontend-holdovers
   namespace: proyecto-2-holdovers
   labels:
     app: frontend-holdovers
