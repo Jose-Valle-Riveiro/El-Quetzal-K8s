@@ -1,0 +1,128 @@
+# Gateway nginx — punto único de entrada de la aplicación.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-nginx-conf-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: gateway
+data:
+  default.conf: |
+    server {
+        listen 80;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # --- API: cada ruta se envía al Service del microservicio por su nombre DNS ---
+        # catalogo e inventario: nginx quita el prefijo (/api/catalogo/productos -> /productos)
+        location /api/catalogo/ {
+            proxy_pass http://catalogo-holdovers:5000/;
+        }
+
+        location /api/inventario/ {
+            proxy_pass http://inventario-holdovers:5000/;
+        }
+
+        # clientes, pedidos y reportes: conservan su nombre como prefijo interno
+        location /api/clientes {
+            proxy_pass http://clientes-holdovers:5000/clientes;
+        }
+
+        location /api/pedidos {
+            proxy_pass http://pedidos-holdovers:5000/pedidos;
+        }
+
+        location /api/reportes/ {
+            proxy_pass http://reportes-holdovers:5000/reportes/;
+        }
+
+        # --- Frontend: todo lo demás va al Service del frontend ---
+        location / {
+            proxy_pass http://frontend-holdovers:80;
+        }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: gateway-nginx-conf-holdovers
+
+---
+# Service NodePort: acceso por la IP de la máquina/nodo en el puerto 30080
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-nodeport-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: gateway
+spec:
+  type: NodePort
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+
+---
+# Service LoadBalancer: en k3s recibe la IP del nodo como EXTERNAL-IP.
+# Se usa el puerto 8080 porque Traefik (incluido por defecto en k3s) ya ocupa el 80.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-lb-holdovers
+  namespace: proyecto-2-holdovers
+  labels:
+    app: gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 80
