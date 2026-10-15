@@ -6,7 +6,7 @@ metadata:
   name: frontend
   namespace: proyecto-2-holdovers
   labels:
-    app: frontend
+    app: frontend-holdovers
 spec:
   type: ClusterIP
   selector:
@@ -20,7 +20,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: catalogo
+  name: catalogo-holdovers
   namespace: proyecto-2-holdovers
   labels:
     app: catalogo
@@ -37,7 +37,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: inventario
+  name: inventario-holdovers
   namespace: proyecto-2-holdovers
   labels:
     app: inventario
@@ -54,7 +54,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: clientes
+  name: clientes-holdovers
   namespace: proyecto-2-holdovers
   labels:
     app: clientes
@@ -71,7 +71,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: pedidos
+  name: pedidos-holdovers
   namespace: proyecto-2-holdovers
   labels:
     app: pedidos
@@ -88,7 +88,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: reportes
+  name: reportes-holdovers
   namespace: proyecto-2-holdovers
   labels:
     app: reportes
