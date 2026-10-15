@@ -1,11 +1,8 @@
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-init-scripts
-  namespace: proyecto-2-holdovers
 data:
-  01-crear-bases.sh: |
+  01-crear-bases.sh: |-
     #!/bin/bash
+
     set -e
 
     psql -v ON_ERROR_STOP=1 \
@@ -14,30 +11,174 @@ data:
 
         CREATE USER catalogo_user
             WITH PASSWORD '$CATALOGO_DB_PASSWORD';
+
         CREATE DATABASE catalogo_db
             OWNER catalogo_user;
+
         REVOKE CONNECT ON DATABASE catalogo_db
             FROM PUBLIC;
 
+
         CREATE USER inventario_user
             WITH PASSWORD '$INVENTARIO_DB_PASSWORD';
+
         CREATE DATABASE inventario_db
             OWNER inventario_user;
+
         REVOKE CONNECT ON DATABASE inventario_db
             FROM PUBLIC;
 
+
         CREATE USER clientes_user
             WITH PASSWORD '$CLIENTES_DB_PASSWORD';
+
         CREATE DATABASE clientes_db
             OWNER clientes_user;
+
         REVOKE CONNECT ON DATABASE clientes_db
             FROM PUBLIC;
 
+
         CREATE USER pedidos_user
             WITH PASSWORD '$PEDIDOS_DB_PASSWORD';
+
         CREATE DATABASE pedidos_db
             OWNER pedidos_user;
+
         REVOKE CONNECT ON DATABASE pedidos_db
             FROM PUBLIC;
 
     EOSQL
+  02-schema-catalogo.sql: |
+    \c catalogo_db
+    SET ROLE catalogo_user;
+    CREATE TABLE IF NOT EXISTS productos (
+        id SERIAL PRIMARY KEY,
+        sku VARCHAR(50) UNIQUE NOT NULL,
+        nombre VARCHAR(150) NOT NULL,
+        categoria VARCHAR(80),
+        precio NUMERIC(10, 2) NOT NULL CHECK (precio > 0),
+        creado_en TIMESTAMP NOT NULL DEFAULT now()
+    );
+  03-schema-inventario.sql: |
+    \c inventario_db
+    SET ROLE inventario_user;
+    CREATE TABLE IF NOT EXISTS stock (
+        sku VARCHAR(50) PRIMARY KEY,
+        cantidad INTEGER NOT NULL DEFAULT 0 CHECK (cantidad >= 0),
+        actualizado_en TIMESTAMP NOT NULL DEFAULT now()
+    );
+  04-schema-clientes.sql: |
+    \c clientes_db
+    SET ROLE clientes_user;
+    CREATE TABLE IF NOT EXISTS clientes (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(150) NOT NULL,
+        email VARCHAR(150) NOT NULL UNIQUE,
+        telefono VARCHAR(30),
+        creado_en TIMESTAMP NOT NULL DEFAULT now()
+    );
+  05-schema-pedidos.sql: |-
+    \c pedidos_db
+    SET ROLE pedidos_user;
+
+    CREATE TABLE IF NOT EXISTS pedidos (
+        id SERIAL PRIMARY KEY,
+        carne_integrante VARCHAR(30) NOT NULL,
+        cliente_id INTEGER,
+        total NUMERIC(10, 2) NOT NULL,
+        estado VARCHAR(20) NOT NULL DEFAULT 'pendiente'
+            CONSTRAINT pedidos_estado_check
+            CHECK (estado IN ('pendiente', 'completado', 'cancelado')),
+        fecha TIMESTAMP NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS pedido_items (
+        id SERIAL PRIMARY KEY,
+        pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+        sku VARCHAR(50) NOT NULL,
+        cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+        precio_unitario NUMERIC(10, 2) NOT NULL
+    );
+
+    -- Índices: aceleran el join pedidos, pedido_items y las consultas de /reportes
+    CREATE INDEX IF NOT EXISTS idx_pedido_items_pedido_id ON pedido_items(pedido_id);
+    CREATE INDEX IF NOT EXISTS idx_pedido_items_sku       ON pedido_items(sku);
+    CREATE INDEX IF NOT EXISTS idx_pedidos_fecha          ON pedidos(fecha);
+    CREATE INDEX IF NOT EXISTS idx_pedidos_cliente_id     ON pedidos(cliente_id);
+    CREATE INDEX IF NOT EXISTS idx_pedidos_estado         ON pedidos(estado);
+  06-seed-catalogo.sql: |-
+    \c catalogo_db
+    SET ROLE catalogo_user;
+
+    INSERT INTO productos (sku, nombre, categoria, precio) VALUES
+    ('SKU-001', 'Laptop Lenovo ThinkPad', 'Electrónica', 4500.00),
+    ('SKU-002', 'Mouse inalámbrico', 'Accesorios', 85.50),
+    ('SKU-003', 'Monitor 24 pulgadas', 'Electrónica', 950.00),
+    ('SKU-004', 'Teclado mecánico', 'Accesorios', 320.00),
+    ('SKU-005', 'Silla ergonómica', 'Mobiliario', 1200.00)
+    ON CONFLICT (sku) DO NOTHING;
+  06b-categorias-catalogo.sql: |-
+    \c catalogo_db
+    SET ROLE catalogo_user;
+
+    CREATE TABLE IF NOT EXISTS categorias (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(60) NOT NULL
+    );
+
+    -- Sin duplicados aunque cambie mayúsculas/minúsculas ("Electrónica" = "electrónica")
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_categorias_nombre_lower ON categorias (lower(nombre));
+
+    -- Respaldo: las categorías que ya usan los productos existentes
+    INSERT INTO categorias (nombre)
+    SELECT DISTINCT trim(categoria) FROM productos
+    WHERE categoria IS NOT NULL AND trim(categoria) <> ''
+    ON CONFLICT DO NOTHING;
+  07-seed-inventario.sql: |-
+    \c inventario_db
+    SET ROLE inventario_user;
+
+    INSERT INTO stock (sku, cantidad) VALUES
+    ('SKU-001', 15),
+    ('SKU-002', 50),
+    ('SKU-003', 20),
+    ('SKU-004', 30),
+    ('SKU-005', 8)
+    ON CONFLICT (sku) DO NOTHING;
+  08-seed-clientes.sql: |
+    \c clientes_db
+    SET ROLE clientes_user;
+
+    INSERT INTO clientes (nombre, email, telefono) VALUES
+    ('Distribuidora Central, S.A.', 'compras@distribuidoracentral.com', '22334455'),
+    ('Comercial El Progreso', 'contacto@elprogreso.gt', '55667788'),
+    ('Ferretería Los Andes', 'ventas@losandes.gt', '44556677')
+    ON CONFLICT (email) DO NOTHING;
+  09-seed-pedidos.sql: |-
+    \c pedidos_db
+    SET ROLE pedidos_user;
+
+    -- Pedido 1: con cliente asociado (cliente_id = 1, "Distribuidora Central, S.A.")
+    WITH nuevo_pedido AS (
+        INSERT INTO pedidos (carne_integrante, cliente_id, total, estado)
+        VALUES ('1186023', 1, 9256.50, 'completado')
+        RETURNING id
+    )
+    INSERT INTO pedido_items (pedido_id, sku, cantidad, precio_unitario)
+    SELECT id, 'SKU-001', 2, 4500.00 FROM nuevo_pedido
+    UNION ALL
+    SELECT id, 'SKU-002', 3, 85.50 FROM nuevo_pedido;
+
+    -- Pedido 2: sin cliente asociado (cliente_id NULL), prueba de que es opcional
+    WITH nuevo_pedido AS (
+        INSERT INTO pedidos (carne_integrante, cliente_id, total, estado)
+        VALUES ('1186023', NULL, 950.00, 'completado')
+        RETURNING id
+    )
+    INSERT INTO pedido_items (pedido_id, sku, cantidad, precio_unitario)
+    SELECT id, 'SKU-003', 1, 950.00 FROM nuevo_pedido;
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: proyecto-2-holdovers
