@@ -1,6 +1,8 @@
 # Gateway nginx — punto único de entrada de la aplicación.
-
+#Versión de la APi de kubernets necesaria p
 apiVersion: v1
+#Define el tipo de objeto 
+#Configmap: almacena la configuración de nginx para el gateway
 kind: ConfigMap
 metadata:
   name: gateway-nginx-conf-holdovers
@@ -48,6 +50,7 @@ data:
 
 ---
 apiVersion: apps/v1
+#Deployment: objeto encargado de gestionar réplicas y despliegues de contenedores.
 kind: Deployment
 metadata:
   name: gateway-holdovers
@@ -55,15 +58,20 @@ metadata:
   labels:
     app: gateway
 spec:
+# numero de copias (pods) que deben estar corriendo en este servidor (si se cae uno, el deployment levanta otro)
   replicas: 1
+#Define como el deployment encuentra los pods que administra, en este caso cualquiera que tenga app: gateway
   selector:
     matchLabels:
       app: gateway
+#plantilla para los pods
   template:
+  #le asigna app:gateway
     metadata:
       labels:
         app: gateway
     spec:
+# lista de contenedores que componen el pod 
       containers:
         - name: nginx
           image: nginx:1.27-alpine
